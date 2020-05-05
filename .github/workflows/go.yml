@@ -34,3 +34,17 @@ jobs:
         token: ${{ secrets.CODECOV_TOKEN }}
         file: ./coverage.txt
         fail_ci_if_error: true
+
+  matrix:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        go: [ '1.14', '1.13', '1.12', '1.11', '1.10' ]
+    name: Go ${{ matrix.go }} compatibility
+    steps:
+      - uses: actions/checkout@v2
+      - name: Setup go
+        uses: actions/setup-go@v1
+        with:
+          go-version: ${{ matrix.go }}
+      - run: go test -v
