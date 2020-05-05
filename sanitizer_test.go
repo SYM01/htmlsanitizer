@@ -35,7 +35,7 @@ func ExampleNewWriter() {
 	// true
 }
 
-func ExampleHTMLSanitizer_noTagsAllowd() {
+func ExampleHTMLSanitizer_noTagsAllowed() {
 	sanitizer := NewHTMLSanitizer()
 	// just set Whitelist to nil to disable all tags
 	sanitizer.Whitelist = nil

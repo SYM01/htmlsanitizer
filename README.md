@@ -1,6 +1,7 @@
 # Golang HTML Sanitizer
 
 ![Go](https://github.com/SYM01/htmlsanitizer/workflows/Go/badge.svg)
+[![codecov](https://codecov.io/gh/SYM01/htmlsanitizer/branch/master/graph/badge.svg)](https://codecov.io/gh/SYM01/htmlsanitizer)
 
 htmlsanitizer is a super fast, whitelist-based HTML sanitizer written in Golang. A built-in, secure-by-default whitelist helps you filter out any dangerous HTML content.
 
