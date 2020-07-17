@@ -4,7 +4,7 @@ import (
 	"fmt"
 )
 
-func ExampleWhitelist_RemoveTag() {
+func ExampleAllowList_RemoveTag() {
 	// sometimes we don't want user to pass HTML with <a> tag
 	sanitizer := NewHTMLSanitizer()
 	sanitizer.RemoveTag("a")
