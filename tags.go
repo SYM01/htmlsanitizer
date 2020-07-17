@@ -45,9 +45,9 @@ func (t *Tag) attrExists(p []byte) (ok, urlAttr bool) {
 	return
 }
 
-// Whitelist speficies all the allowed HTML tags and its attributes for
+// AllowList speficies all the allowed HTML tags and its attributes for
 // the filter.
-type Whitelist struct {
+type AllowList struct {
 	// Tags specifies all the allow tags.
 	Tags []*Tag
 
@@ -59,7 +59,7 @@ type Whitelist struct {
 }
 
 // attrExists checks whether global attr exists. Case sensitive
-func (l *Whitelist) attrExists(p []byte) bool {
+func (l *AllowList) attrExists(p []byte) bool {
 	if l == nil {
 		return false
 	}
@@ -77,7 +77,7 @@ func (l *Whitelist) attrExists(p []byte) bool {
 // RemoveTag removes all tags name `name`, must be lowercase
 // It is not recommended to modify the default list directly, use .Clone() and
 // then modify the new one instead.
-func (l *Whitelist) RemoveTag(name string) {
+func (l *AllowList) RemoveTag(name string) {
 	if l == nil || l.Tags == nil {
 		return
 	}
@@ -97,7 +97,7 @@ func (l *Whitelist) RemoveTag(name string) {
 }
 
 // FindTag finds and returns tag by its name, case insensitive.
-func (l *Whitelist) FindTag(p []byte) *Tag {
+func (l *AllowList) FindTag(p []byte) *Tag {
 	if l == nil {
 		return nil
 	}
@@ -112,26 +112,26 @@ func (l *Whitelist) FindTag(p []byte) *Tag {
 	return nil
 }
 
-// Clone a new Whitelist.
-func (l *Whitelist) Clone() *Whitelist {
+// Clone a new AllowList.
+func (l *AllowList) Clone() *AllowList {
 	if l == nil {
 		return l
 	}
 
-	newList := new(Whitelist)
+	newList := new(AllowList)
 	newList.Tags = append(newList.Tags, l.Tags...)
 	newList.GlobalAttr = append(newList.GlobalAttr, l.GlobalAttr...)
 
 	return newList
 }
 
-// DefaultWhitelist for HTML filter.
+// DefaultAllowList for HTML filter.
 //
-// The whitelist contains most tags listed in
+// The allowlist contains most tags listed in
 // https://developer.mozilla.org/en-US/docs/Web/HTML/Element .
 // It is not recommended to modify the default list directly, use .Clone() and
 // then modify the new one instead.
-var DefaultWhitelist = &Whitelist{
+var DefaultAllowList = &AllowList{
 	Tags: []*Tag{
 		{"address", []string{}, []string{}},
 		{"article", []string{}, []string{}},

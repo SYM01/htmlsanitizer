@@ -37,8 +37,8 @@ func ExampleNewWriter() {
 
 func ExampleHTMLSanitizer_noTagsAllowed() {
 	sanitizer := NewHTMLSanitizer()
-	// just set Whitelist to nil to disable all tags
-	sanitizer.Whitelist = nil
+	// just set AllowList to nil to disable all tags
+	sanitizer.AllowList = nil
 
 	// of course nothing will happen here
 	sanitizer.RemoveTag("a")

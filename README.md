@@ -4,12 +4,12 @@
 [![codecov](https://codecov.io/gh/SYM01/htmlsanitizer/branch/develop/graph/badge.svg)](https://codecov.io/gh/SYM01/htmlsanitizer)
 
 
-htmlsanitizer is a super fast, whitelist-based HTML sanitizer written in Golang. A built-in, secure-by-default whitelist helps you filter out any dangerous HTML content.
+htmlsanitizer is a super fast, allowlist-based HTML sanitizer written in Golang. A built-in, secure-by-default allowlist helps you filter out any dangerous HTML content.
 
 Why use htmlsanitizer?
 
 - [x] Fast, a Finite State Machine was implemented internally, making the time complexity always O(n).
-- [x] Highly customizable, allows you to modify the whitelist, or simply disable all HTML tags.
+- [x] Highly customizable, allows you to modify the allowlist, or simply disable all HTML tags.
 - [x] Dependency free.
 
 
@@ -22,9 +22,9 @@ go get -u github.com/sym01/htmlsanitizer
 
 ## Getting Started
 
-### Use the secure-by-default whitelist
+### Use the secure-by-default allowlist
 
-Simply use the secure-by-default whitelist to sanitize untrusted HTML.
+Simply use the secure-by-default allowlist to sanitize untrusted HTML.
 
 ```golang
 sanitizedHTML, err := htmlsanitizer.SanitizeString(rawHTML)
@@ -54,7 +54,7 @@ customTag := &htmlsanitizer.Tag{
     Name: "my-tag",
     Attr: []string{"my-attr"},
 }
-s.Whitelist.Tags = append(s.Whitelist.Tags, customTag)
+s.AllowList.Tags = append(s.AllowList.Tags, customTag)
 
 sanitizedHTML, err := s.SanitizeString(rawHTML)
 ```
@@ -65,8 +65,8 @@ You can also use htmlsanitizer to remove all HTML tags.
 
 ```golang
 s := htmlsanitizer.NewHTMLSanitizer()
-// just set Whitelist to nil to disable all tags
-s.Whitelist = nil
+// just set AllowList to nil to disable all tags
+s.AllowList = nil
 
 sanitizedHTML, err := s.SanitizeString(rawHTML)
 ```

@@ -33,9 +33,9 @@ func DefaultURLSanitizer(rawURL string) (sanitzed string, ok bool) {
 }
 
 // HTMLSanitizer is a super fast HTML sanitizer for arbitrary HTML content.
-// This is a whitelist-based santizer, of which the time complexity is O(n).
+// This is a allowlist-based santizer, of which the time complexity is O(n).
 type HTMLSanitizer struct {
-	*Whitelist
+	*AllowList
 
 	// URLSanitizer is a func used to sanitize all the URLAttr.
 	// URLSanitizer returns a sanitzed URL and a bool var indicating
@@ -46,10 +46,10 @@ type HTMLSanitizer struct {
 }
 
 // NewHTMLSanitizer creates a new HTMLSanitizer with the clone of
-// the DefaultWhitelist.
+// the DefaultAllowList.
 func NewHTMLSanitizer() *HTMLSanitizer {
 	return &HTMLSanitizer{
-		Whitelist: DefaultWhitelist.Clone(),
+		AllowList: DefaultAllowList.Clone(),
 	}
 }
 
@@ -93,18 +93,18 @@ func (f *HTMLSanitizer) SanitizeString(data string) (string, error) {
 
 var defaultHTMLSanitizer = NewHTMLSanitizer()
 
-// NewWriter returns a new Writer, with DefaultWhitelist,
+// NewWriter returns a new Writer, with DefaultAllowList,
 // writing sanitized HTML content to w.
 func NewWriter(w io.Writer) io.Writer {
 	return defaultHTMLSanitizer.NewWriter(w)
 }
 
-// Sanitize uses the DefaultWhitelist to sanitize the HTML data.
+// Sanitize uses the DefaultAllowList to sanitize the HTML data.
 func Sanitize(data []byte) ([]byte, error) {
 	return defaultHTMLSanitizer.Sanitize(data)
 }
 
-// SanitizeString uses the DefaultWhitelist to sanitize the HTML string.
+// SanitizeString uses the DefaultAllowList to sanitize the HTML string.
 func SanitizeString(data string) (string, error) {
 	return defaultHTMLSanitizer.SanitizeString(data)
 }
