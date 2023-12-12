@@ -15,7 +15,7 @@ func ExampleNewWriter() {
 	// demo data
 	data := strings.Repeat(`abc-->
 <a href="javascript:alert(1)">link1</a>
-<a href=http://example.com>link2</a>
+<a href=http://example.com>link2<script>xxx</script></a>
 <!--`, 1024)
 	expected := "abc--&gt;" + strings.Repeat(`
 <a>link1</a>
@@ -55,6 +55,25 @@ func ExampleHTMLSanitizer_noTagsAllowed() {
 	//
 	// Link
 	// Link with example.com
+}
+
+func ExampleHTMLSanitizer_onlyAllowHrefTag() {
+	sanitizer := htmlsanitizer.NewHTMLSanitizer()
+	sanitizer.AllowList.Tags = []*htmlsanitizer.Tag{
+		{"a", nil, []string{"href"}},
+	}
+
+	data := `
+<details/open/ontoggle=alert(1)></details>
+<a href="http://others.com" target="_blank">Link</a>
+<a href="https://example.com/xxx">Link with example.com</a>
+	`
+	output, _ := sanitizer.SanitizeString(data)
+	fmt.Print(output)
+	// Output:
+	//
+	// <a href="http://others.com">Link</a>
+	// <a href="https://example.com/xxx">Link with example.com</a>
 }
 
 func ExampleHTMLSanitizer_customURLSanitizer() {
@@ -242,7 +261,7 @@ var testCases = []struct {
 	},
 	{
 		in:  `<IMG """><SCRIPT>alert("XSS")</SCRIPT>"\>`,
-		out: `<img>alert("XSS")"\&gt;`,
+		out: `<img>"\&gt;`,
 	},
 	{
 		in:  `<IMG SRC=javascript:alert(String.fromCharCode(88,83,83))>`,
@@ -346,7 +365,7 @@ var testCases = []struct {
 	},
 	{
 		in:  `<STYLE>li {list-style-image: url("javascript:alert('XSS')");}</STYLE><UL><LI>XSS</br>`,
-		out: "li {list-style-image: url(\"javascript:alert('XSS')\");}<ul><li>XSS</br>",
+		out: "<ul><li>XSS</br>",
 	},
 	{
 		in:  `<svg/onload=alert('XSS')>`,
@@ -382,10 +401,10 @@ var testCases = []struct {
 	},
 	{
 		in: `<!--[if gte IE 4]>
-		<SCRIPT>alert('XSS');</SCRIPT>
+<SCRIPT>alert('XSS');</SCRIPT>
 		<![endif]-->`,
 		out: `
-		alert('XSS');
+
 		`,
 	},
 	{
@@ -427,35 +446,61 @@ var testCases = []struct {
 	},
 	{
 		in: `
-		<Img src = x onerror = "javascript: window.onerror = alert; throw XSS">
-		<Video> <source onerror = "javascript: alert (XSS)">
-		<Input value = "XSS" type = text>
-		<applet code="javascript:confirm(document.cookie);">
-		<isindex x="javascript:" onmouseover="alert(XSS)">
-		"></SCRIPT>”>’><SCRIPT>alert(String.fromCharCode(88,83,83))</SCRIPT>
-		"><img src="x:x" onerror="alert(XSS)">
-		"><iframe src="javascript:alert(XSS)">
-		<object data="javascript:alert(XSS)">
-		<isindex type=image src=1 onerror=alert(XSS)>
-		<img src=x:alert(alt) onerror=eval(src) alt=0>
-		<img  src="x:gif" onerror="window['al\u0065rt'](0)"></img>
-		<iframe/src="data:text/html,<svg onload=alert(1)>">
-		<meta content="&NewLine; 1 &NewLine;; JAVASCRIPT&colon; alert(1)" http-equiv="refresh"/>
-		<svg><script xlink:href=data&colon;,window.open('https://www.google.com/')></script
-		<meta http-equiv="refresh" content="0;url=javascript:confirm(1)">
-		<iframe src=javascript&colon;alert&lpar;document&period;location&rpar;>
-		<form><a href="javascript:\u0061lert(1)">X
-		</script><img/*%00/src="worksinchrome&colon;prompt(1)"/%00*/onerror='eval(src)'>
-		<style>//*{x:expression(alert(/xss/))}//<style></style>
-		On Mouse Over​
-		<img src="/" =_=" title="onerror='prompt(1)'">
-		<a aa aaa aaaa aaaaa aaaaaa aaaaaaa aaaaaaaa aaaaaaaaa aaaaaaaaaa href=j&#97v&#97script:&#97lert(1)>ClickMe
-		<script x> alert(1) </script 1=2
-		<form><button formaction=javascript&colon;alert(1)>CLICKME
-		<input/onmouseover="javaSCRIPT&colon;confirm&lpar;1&rpar;"
-		<iframe src="data:text/html,%3C%73%63%72%69%70%74%3E%61%6C%65%72%74%28%31%29%3C%2F%73%63%72%69%70%74%3E"></iframe>
-		<OBJECT CLASSID="clsid:333C7BC4-460F-11D0-BC04-0080C7055A83"><PARAM NAME="DataURL" VALUE="javascript:alert(1)"></OBJECT>
+<Img src = x onerror = "javascript: window.onerror = alert; throw XSS">
+<Video> <source onerror = "javascript: alert (XSS)">
+<Input value = "XSS" type = text>
+<applet code="javascript:confirm(document.cookie);">
+<isindex x="javascript:" onmouseover="alert(XSS)">
+"></SCRIPT>”>’><SCRIPT>alert(String.fromCharCode(88,83,83))</SCRIPT>
+"><img src="x:x" onerror="alert(XSS)">
+"><iframe src="javascript:alert(XSS)">
+<object data="javascript:alert(XSS)" />
+<isindex type=image src=1 onerror=alert(XSS)>
+<img src=x:alert(alt) onerror=eval(src) alt=0>
+<img  src="x:gif" onerror="window['al\u0065rt'](0)"></img>
+<iframe/src="data:text/html,<svg onload=alert(1)>">
+<meta content="&NewLine; 1 &NewLine;; JAVASCRIPT&colon; alert(1)" http-equiv="refresh"/>
+<svg><script xlink:href=data&colon;,window.open('https://www.google.com/')></script
+<meta http-equiv="refresh" content="0;url=javascript:confirm(1)">
+<iframe src=javascript&colon;alert&lpar;document&period;location&rpar;>
+<form><a href="javascript:\u0061lert(1)">X
+</script><img/*%00/src="worksinchrome&colon;prompt(1)"/%00*/onerror='eval(src)'>
+<style>//*{x:expression(alert(/xss/))}//<style></style>
+On Mouse Over​
+<img src="/" =_=" title="onerror='prompt(1)'">
+<a aa aaa aaaa aaaaa aaaaaa aaaaaaa aaaaaaaa aaaaaaaaa aaaaaaaaaa href=j&#97v&#97script:&#97lert(1)>ClickMe
+<script x> alert(1) </script 1=2
+<form><button formaction=javascript&colon;alert(1)>CLICKME
+<input/onmouseover="javaSCRIPT&colon;confirm&lpar;1&rpar;"
+<iframe src="data:text/html,%3C%73%63%72%69%70%74%3E%61%6C%65%72%74%28%31%29%3C%2F%73%63%72%69%70%74%3E"></iframe>
+<OBJECT CLASSID="clsid:333C7BC4-460F-11D0-BC04-0080C7055A83"><PARAM NAME="DataURL" VALUE="javascript:alert(1)"></OBJECT>
 		`,
-		out: "\n\t\t<img src=\"x\">\n\t\t<video> <source>\n\t\t\n\t\t\n\t\t\n\t\t\"&gt;”&gt;’&gt;alert(String.fromCharCode(88,83,83))\n\t\t\"&gt;<img>\n\t\t\"&gt;\n\t\t\n\t\t\n\t\t<img alt=\"0\">\n\t\t<img></img>\n\t\t\n\t\t\n\t\t\n\t\t\n\t\t<a>X\n\t\t<img>\n\t\t//*{x:expression(alert(/xss/))}//\n\t\tOn Mouse Over\u200b\n\t\t<img src=\"/\">\n\t\t<a>ClickMe\n\t\t alert(1) CLICKME\n\t\t\n\t\t\n\t\t",
+		out: `
+<img src="x">
+<video> <source>
+
+
+
+"&gt;”&gt;’&gt;
+"&gt;<img>
+"&gt;
+
+
+<img alt="0">
+<img></img>
+
+
+
+
+<a>X
+<img>
+
+On Mouse Over​
+<img src="/">
+<a>ClickMe
+ alert(1) CLICKME
+
+
+		`,
 	},
 }

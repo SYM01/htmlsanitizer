@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"html"
 	"io"
+	"strings"
 	"unicode"
 )
 
@@ -52,12 +53,13 @@ type writer struct {
 	off  int
 
 	// tmp data
-	tagName  []byte
-	tag      *Tag
-	attr     []byte
-	val      []byte
-	quote    byte
-	lastByte byte // last byte for ATTRGAP
+	tagName    []byte
+	tag        *Tag
+	nonHTMLTag *Tag
+	attr       []byte
+	val        []byte
+	quote      byte
+	lastByte   byte // last byte for ATTRGAP
 
 	// buf for write
 	buf []byte
@@ -136,6 +138,23 @@ func (w *writer) safeAppendAttr() {
 	w.buf = append(w.buf, '"')
 }
 
+// not an allowed tag, but it's a non-html tag.
+// then we should ignore the contents inside
+func (w *writer) shouldSwallowContent() bool {
+	return w.nonHTMLTag != nil && w.tag == nil
+}
+
+func (w *writer) shouldKeepNonHTMLContent() bool {
+	return w.nonHTMLTag != nil && w.tag != nil && w.nonHTMLTag.Name == w.tag.Name
+}
+
+func (w *writer) isEndTagOfNonHTMLElement(p []byte) bool {
+	if w.nonHTMLTag == nil {
+		return false
+	}
+	return w.nonHTMLTag.Name == strings.ToLower(string(p))
+}
+
 func (w *writer) Write(p []byte) (n int, err error) {
 	// reset data
 	w.data = p
@@ -185,36 +204,49 @@ func (w *writer) Write(p []byte) (n int, err error) {
 }
 
 // done
-func (w *writer) sNORMAL() error {
+func (w *writer) sNORMAL() (err error) {
 	for ; w.off < len(w.data); w.off++ {
 		switch b := w.data[w.off]; b {
 		case '<':
 			w.state = sLTSIGN
 			w.off++
 
-			_, err := w.flush()
-			return err
+			_, err = w.flush()
+			return
 		case '>':
+			if w.shouldSwallowContent() {
+				continue
+			}
 			w.buf = append(w.buf, `&gt;`...)
 		default:
+			if w.shouldSwallowContent() {
+				continue
+			}
 			w.buf = append(w.buf, b)
 		}
 	}
 
-	_, err := w.flush()
+	_, err = w.flush()
 	return err
 }
 
 // done
 func (w *writer) sLTSIGN() error {
-	switch b := w.data[w.off]; b {
-	case '/':
+	switch b := w.data[w.off]; {
+	case b == '/':
 		w.off++
 
 		w.state = sETAGSTART
 		w.tagName = nil
 		w.tag = nil
-		return nil
+
+	case w.shouldKeepNonHTMLContent():
+		w.buf = append(w.buf, `&lt;`...)
+		w.state = sNORMAL
+
+	case w.shouldSwallowContent():
+		w.state = sNORMAL
+		w.off++
 
 	default:
 		w.off++
@@ -230,8 +262,8 @@ func (w *writer) sLTSIGN() error {
 		}
 
 		w.state = sERRTAG
-		return nil
 	}
+	return nil
 }
 
 // done
@@ -240,6 +272,7 @@ func (w *writer) sTAGNAME() error {
 		switch b := w.data[w.off]; b {
 		case '>':
 			w.tag = w.FindTag(w.tagName)
+			w.nonHTMLTag = w.checkNonHTMLTag(w.tagName)
 			// no w.off++
 			w.state = sTAGEND
 
@@ -532,8 +565,12 @@ func (w *writer) sETAGSTART() error {
 // done
 func (w *writer) sETAGNAME() error {
 	for ; w.off < len(w.data); w.off++ {
-		switch b := w.data[w.off]; b {
-		case '>':
+		switch b := w.data[w.off]; {
+		case b == '>':
+			if w.isEndTagOfNonHTMLElement(w.tagName) {
+				w.nonHTMLTag = nil
+			}
+
 			w.tag = w.FindTag(w.tagName)
 			if w.tag == nil {
 				// no w.off++
@@ -547,10 +584,13 @@ func (w *writer) sETAGNAME() error {
 			w.buf = append(w.buf, w.tag.Name...)
 			return nil
 
+		case legalKeywordByte(b):
+			w.tagName = append(w.tagName, b)
+			continue
+
 		default:
-			if legalKeywordByte(b) {
-				w.tagName = append(w.tagName, b)
-				continue
+			if w.isEndTagOfNonHTMLElement(w.tagName) {
+				w.nonHTMLTag = nil
 			}
 
 			w.tag = w.FindTag(w.tagName)
