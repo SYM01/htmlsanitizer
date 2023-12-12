@@ -37,6 +37,60 @@ func ExampleNewWriter() {
 	// true
 }
 
+func ExampleHTMLSanitizer_keepStyleSheet() {
+	sanitizer := htmlsanitizer.NewHTMLSanitizer()
+	sanitizer.AllowList.Tags = append(sanitizer.AllowList.Tags,
+		&htmlsanitizer.Tag{Name: "style"},
+		&htmlsanitizer.Tag{Name: "head"},
+		&htmlsanitizer.Tag{Name: "body"},
+		&htmlsanitizer.Tag{Name: "html"},
+	)
+
+	data := `<!doctype html>
+<html>
+<head>
+	<style type="text/css">
+	body {
+		background-color: #f0f0f2;
+		margin: 0;
+		padding: 0;
+		bad-attr: <body>;
+		font-family: -apple-system, system-ui, BlinkMacSystemFont, "Segoe UI", "Open Sans", "Helvetica Neue", Helvetica, Arial, sans-serif;
+	}
+	</style>
+</head>
+<body>
+	<div>
+	<h1>Example Domain</h1>
+	<p><a href="https://www.iana.org/domains/example">More information...</a></p>
+	</div>
+</body>
+</html>`
+	output, _ := sanitizer.SanitizeString(data)
+	fmt.Print(output)
+	// Output:
+	//
+	// <html>
+	// <head>
+	// 	<style>
+	//	body {
+	//		background-color: #f0f0f2;
+	//		margin: 0;
+	//		padding: 0;
+	// 		bad-attr: &lt;body&gt;;
+	//		font-family: -apple-system, system-ui, BlinkMacSystemFont, "Segoe UI", "Open Sans", "Helvetica Neue", Helvetica, Arial, sans-serif;
+	//	}
+	// 	</style>
+	// </head>
+	// <body>
+	// 	<div>
+	// 	<h1>Example Domain</h1>
+	// 	<p><a href="https://www.iana.org/domains/example">More information...</a></p>
+	// 	</div>
+	// </body>
+	// </html>
+}
+
 func ExampleHTMLSanitizer_noTagsAllowed() {
 	sanitizer := htmlsanitizer.NewHTMLSanitizer()
 	// just set AllowList to nil to disable all tags
@@ -425,7 +479,7 @@ var testCases = []struct {
 	},
 	{
 		in:  `<SCRIPT =">" SRC="httx://xss.rocks/xss.js"></SCRIPT>`,
-		out: "\" SRC=\"httx://xss.rocks/xss.js\"&gt;",
+		out: "",
 	},
 	{
 		in:  `<A HREF="http://66.102.7.147/">XSS</A>`,
@@ -484,10 +538,7 @@ On Mouse Over​
 "&gt;”&gt;’&gt;
 "&gt;<img>
 "&gt;
-
-
-<img alt="0">
-<img></img>
+</img>
 
 
 
@@ -498,7 +549,7 @@ On Mouse Over​
 On Mouse Over​
 <img src="/">
 <a>ClickMe
- alert(1) CLICKME
+CLICKME
 
 
 		`,

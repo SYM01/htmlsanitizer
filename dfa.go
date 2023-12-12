@@ -294,6 +294,7 @@ func (w *writer) sTAGNAME() error {
 			w.lastByte = b
 
 			w.tag = w.FindTag(w.tagName)
+			w.nonHTMLTag = w.checkNonHTMLTag(w.tagName)
 			if w.tag == nil {
 				return nil
 			}
