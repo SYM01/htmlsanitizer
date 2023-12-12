@@ -55,7 +55,6 @@ type writer struct {
 	tagName  []byte
 	tag      *Tag
 	attr     []byte
-	urlAttr  bool
 	val      []byte
 	quote    byte
 	lastByte byte // last byte for ATTRGAP
@@ -105,7 +104,6 @@ func (w *writer) safeAppend(p []byte) {
 			w.buf = append(w.buf, b)
 		}
 	}
-	return
 }
 
 // write tag attribute and its sanitzed value if legal.

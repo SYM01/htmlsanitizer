@@ -1,12 +1,14 @@
-package htmlsanitizer
+package htmlsanitizer_test
 
 import (
 	"fmt"
+
+	"github.com/sym01/htmlsanitizer"
 )
 
 func ExampleAllowList_RemoveTag() {
 	// sometimes we don't want user to pass HTML with <a> tag
-	sanitizer := NewHTMLSanitizer()
+	sanitizer := htmlsanitizer.NewHTMLSanitizer()
 	sanitizer.RemoveTag("a")
 
 	data := `

@@ -1,4 +1,4 @@
-package htmlsanitizer
+package htmlsanitizer_test
 
 import (
 	"bytes"
@@ -7,6 +7,8 @@ import (
 	"net/url"
 	"strings"
 	"testing"
+
+	"github.com/sym01/htmlsanitizer"
 )
 
 func ExampleNewWriter() {
@@ -26,8 +28,8 @@ func ExampleNewWriter() {
 	// source reader for demo
 	r := bytes.NewBufferString(data)
 
-	sanitizedWriter := NewWriter(o)
-	io.Copy(sanitizedWriter, r)
+	sanitizedWriter := htmlsanitizer.NewWriter(o)
+	_, _ = io.Copy(sanitizedWriter, r)
 
 	// check the result, for demo only
 	fmt.Print(o.String() == expected)
@@ -36,7 +38,7 @@ func ExampleNewWriter() {
 }
 
 func ExampleHTMLSanitizer_noTagsAllowed() {
-	sanitizer := NewHTMLSanitizer()
+	sanitizer := htmlsanitizer.NewHTMLSanitizer()
 	// just set AllowList to nil to disable all tags
 	sanitizer.AllowList = nil
 
@@ -57,9 +59,9 @@ func ExampleHTMLSanitizer_noTagsAllowed() {
 
 func ExampleHTMLSanitizer_customURLSanitizer() {
 	// only links with domain name example.com are allowed.
-	sanitizer := NewHTMLSanitizer()
+	sanitizer := htmlsanitizer.NewHTMLSanitizer()
 	sanitizer.URLSanitizer = func(rawURL string) (newURL string, ok bool) {
-		newURL, ok = DefaultURLSanitizer(rawURL)
+		newURL, ok = htmlsanitizer.DefaultURLSanitizer(rawURL)
 		if !ok {
 			return
 		}
@@ -93,12 +95,12 @@ func ExampleHTMLSanitizer_customURLSanitizer() {
 func TestSanitize(t *testing.T) {
 	data := []byte(`<a class=x id= 123 href="javascript:alert(1)">demo</a>`)
 	expected := []byte(`<a class="x" id="123">demo</a>`)
-	ret, err := Sanitize(data)
+	ret, err := htmlsanitizer.Sanitize(data)
 	if err != nil {
 		t.Errorf("unable to Sanitize err: %s", err)
 		return
 	}
-	if bytes.Compare(ret, expected) != 0 {
+	if !bytes.Equal(ret, expected) {
 		t.Errorf("test failed for %s, expect %s, got %s", data, expected, ret)
 		return
 	}
@@ -106,7 +108,7 @@ func TestSanitize(t *testing.T) {
 
 func TestSanitizeString(t *testing.T) {
 	for _, item := range testCases {
-		ret, err := SanitizeString(item.in)
+		ret, err := htmlsanitizer.SanitizeString(item.in)
 
 		if err != nil {
 			t.Errorf("unable to SanitizeString(%#v) err: %s", item.in, err)
@@ -279,7 +281,7 @@ var testCases = []struct {
 		out: `<img>`,
 	},
 	{
-		in: `<IMG SRC="jav	ascript:alert('XSS');">`,
+		in:  `<IMG SRC="jav	ascript:alert('XSS');">`,
 		out: `<img>`,
 	},
 	{
