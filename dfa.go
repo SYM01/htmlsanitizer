@@ -218,7 +218,7 @@ func (w *writer) sNORMAL() (err error) {
 	}
 
 	_, err = w.flush()
-	return err
+	return
 }
 
 func (w *writer) sNONHTML() (err error) {
@@ -242,7 +242,7 @@ func (w *writer) sNONHTML() (err error) {
 	}
 
 	_, err = w.flush()
-	return err
+	return
 }
 
 func (w *writer) sLTSIGN() error {
