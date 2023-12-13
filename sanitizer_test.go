@@ -499,6 +499,10 @@ var testCases = []struct {
 		out: `<a>XSS</a>`,
 	},
 	{
+		in:  `<span>func <a class= "Documentation-source" href="https://cs.opensource.google/go/go/+/go1.21.5:src/os/path.go;l=66">RemoveAll</a> <a class="Documentation-idLink" href="#RemoveAll" aria-label="Go to RemoveAll">¶</a></span>`,
+		out: `<span>func <a class="Documentation-source" href="https://cs.opensource.google/go/go/+/go1.21.5:src/os/path.go;l=66">RemoveAll</a> <a class="Documentation-idLink" href="#RemoveAll">¶</a></span>`,
+	},
+	{
 		in: `
 <Img src = x onerror = "javascript: window.onerror = alert; throw XSS">
 <Video> <source onerror = "javascript: alert (XSS)">
