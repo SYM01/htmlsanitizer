@@ -1,10 +1,11 @@
-# Golang HTML Sanitizer
+# Golang HTML Sanitizer / Filter
 
-![Go](https://github.com/SYM01/htmlsanitizer/workflows/Go/badge.svg)
+[![Go Reference](https://pkg.go.dev/badge/github.com/sym01/htmlsanitizer.svg)](https://pkg.go.dev/github.com/sym01/htmlsanitizer)
+[![Go](https://github.com/SYM01/htmlsanitizer/workflows/Go/badge.svg)](https://github.com/SYM01/htmlsanitizer/actions/workflows/go.yml)
 [![codecov](https://codecov.io/gh/SYM01/htmlsanitizer/branch/master/graph/badge.svg)](https://codecov.io/gh/SYM01/htmlsanitizer)
 
 
-htmlsanitizer is a super fast, allowlist-based HTML sanitizer written in Golang. A built-in, secure-by-default allowlist helps you filter out any dangerous HTML content.
+htmlsanitizer is a super fast, allowlist-based HTML sanitizer (HTML filter) written in Golang. A built-in, secure-by-default allowlist helps you filter out any dangerous HTML content.
 
 Why use htmlsanitizer?
 

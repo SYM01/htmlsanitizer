@@ -1,4 +1,4 @@
-package htmlsanitizer
+package htmlsanitizer_test
 
 import (
 	"bytes"
@@ -7,13 +7,15 @@ import (
 	"net/url"
 	"strings"
 	"testing"
+
+	"github.com/sym01/htmlsanitizer"
 )
 
 func ExampleNewWriter() {
 	// demo data
 	data := strings.Repeat(`abc-->
 <a href="javascript:alert(1)">link1</a>
-<a href=http://example.com>link2</a>
+<a href=http://example.com>link2<script>xxx</script></a>
 <!--`, 1024)
 	expected := "abc--&gt;" + strings.Repeat(`
 <a>link1</a>
@@ -26,8 +28,8 @@ func ExampleNewWriter() {
 	// source reader for demo
 	r := bytes.NewBufferString(data)
 
-	sanitizedWriter := NewWriter(o)
-	io.Copy(sanitizedWriter, r)
+	sanitizedWriter := htmlsanitizer.NewWriter(o)
+	_, _ = io.Copy(sanitizedWriter, r)
 
 	// check the result, for demo only
 	fmt.Print(o.String() == expected)
@@ -35,8 +37,66 @@ func ExampleNewWriter() {
 	// true
 }
 
+func ExampleHTMLSanitizer_keepStyleSheet() {
+	sanitizer := htmlsanitizer.NewHTMLSanitizer()
+	sanitizer.AllowList.Tags = append(sanitizer.AllowList.Tags,
+		&htmlsanitizer.Tag{Name: "style"},
+		&htmlsanitizer.Tag{Name: "head"},
+		&htmlsanitizer.Tag{Name: "body"},
+		&htmlsanitizer.Tag{Name: "html"},
+	)
+
+	data := `<!doctype html>
+<html>
+<head>
+	<style type="text/css">
+	body {
+		background-color: #f0f0f2;
+		margin: 0;
+		padding: 0;
+		bad-attr: <body></body>;
+		bad-attr: <body></body >;
+		bad-attr: <body></ body>;
+		font-family: -apple-system, system-ui, BlinkMacSystemFont, "Segoe UI", "Open Sans", "Helvetica Neue", Helvetica, Arial, sans-serif;
+	}
+	</style>
+</head>
+<body>
+	<div>
+	<h1>Example Domain</h1>
+	<p><a href="https://www.iana.org/domains/example">More information...</a></p>
+	</div>
+</body>
+</html>`
+	output, _ := sanitizer.SanitizeString(data)
+	fmt.Print(output)
+	// Output:
+	//
+	// <html>
+	// <head>
+	// 	<style>
+	//	body {
+	//		background-color: #f0f0f2;
+	//		margin: 0;
+	//		padding: 0;
+	// 		bad-attr: &lt;body&gt;&lt;/body&gt;;
+	// 		bad-attr: &lt;body&gt;&lt;/body &gt;;
+	// 		bad-attr: &lt;body&gt;&lt;/ body&gt;;
+	//		font-family: -apple-system, system-ui, BlinkMacSystemFont, "Segoe UI", "Open Sans", "Helvetica Neue", Helvetica, Arial, sans-serif;
+	//	}
+	// 	</style>
+	// </head>
+	// <body>
+	// 	<div>
+	// 	<h1>Example Domain</h1>
+	// 	<p><a href="https://www.iana.org/domains/example">More information...</a></p>
+	// 	</div>
+	// </body>
+	// </html>
+}
+
 func ExampleHTMLSanitizer_noTagsAllowed() {
-	sanitizer := NewHTMLSanitizer()
+	sanitizer := htmlsanitizer.NewHTMLSanitizer()
 	// just set AllowList to nil to disable all tags
 	sanitizer.AllowList = nil
 
@@ -55,11 +115,30 @@ func ExampleHTMLSanitizer_noTagsAllowed() {
 	// Link with example.com
 }
 
+func ExampleHTMLSanitizer_onlyAllowHrefTag() {
+	sanitizer := htmlsanitizer.NewHTMLSanitizer()
+	sanitizer.AllowList.Tags = []*htmlsanitizer.Tag{
+		{"a", nil, []string{"href"}},
+	}
+
+	data := `
+<details/open/ontoggle=alert(1)></details>
+<a href="http://others.com" target="_blank">Link</a>
+<a href="https://example.com/xxx">Link with example.com</a>
+	`
+	output, _ := sanitizer.SanitizeString(data)
+	fmt.Print(output)
+	// Output:
+	//
+	// <a href="http://others.com">Link</a>
+	// <a href="https://example.com/xxx">Link with example.com</a>
+}
+
 func ExampleHTMLSanitizer_customURLSanitizer() {
 	// only links with domain name example.com are allowed.
-	sanitizer := NewHTMLSanitizer()
+	sanitizer := htmlsanitizer.NewHTMLSanitizer()
 	sanitizer.URLSanitizer = func(rawURL string) (newURL string, ok bool) {
-		newURL, ok = DefaultURLSanitizer(rawURL)
+		newURL, ok = htmlsanitizer.DefaultURLSanitizer(rawURL)
 		if !ok {
 			return
 		}
@@ -93,12 +172,12 @@ func ExampleHTMLSanitizer_customURLSanitizer() {
 func TestSanitize(t *testing.T) {
 	data := []byte(`<a class=x id= 123 href="javascript:alert(1)">demo</a>`)
 	expected := []byte(`<a class="x" id="123">demo</a>`)
-	ret, err := Sanitize(data)
+	ret, err := htmlsanitizer.Sanitize(data)
 	if err != nil {
 		t.Errorf("unable to Sanitize err: %s", err)
 		return
 	}
-	if bytes.Compare(ret, expected) != 0 {
+	if !bytes.Equal(ret, expected) {
 		t.Errorf("test failed for %s, expect %s, got %s", data, expected, ret)
 		return
 	}
@@ -106,7 +185,7 @@ func TestSanitize(t *testing.T) {
 
 func TestSanitizeString(t *testing.T) {
 	for _, item := range testCases {
-		ret, err := SanitizeString(item.in)
+		ret, err := htmlsanitizer.SanitizeString(item.in)
 
 		if err != nil {
 			t.Errorf("unable to SanitizeString(%#v) err: %s", item.in, err)
@@ -129,7 +208,7 @@ var testCases = []struct {
 		out: "<a class=\"&#39;&lt;&gt;\" rel=\"aaa&#34;\">test</a>",
 	},
 	{
-		in:  `<a href="ftp://example.com/xxx">test</a>`,
+		in:  `<a href="ftp://example.com/xxx">test</a xxx>`,
 		out: "<a>test</a>",
 	},
 	{
@@ -203,7 +282,7 @@ var testCases = []struct {
 
 	// test cases from https://owasp.org/www-community/xss-filter-evasion-cheatsheet
 	{
-		in:  `<SCRIPT SRC=http://xss.rocks/xss.js></SCRIPT>`,
+		in:  `<SCRIPT SRC=http://xss.rocks/xss.js></SCRIPT xxx>`,
 		out: ``,
 	},
 	{
@@ -240,7 +319,7 @@ var testCases = []struct {
 	},
 	{
 		in:  `<IMG """><SCRIPT>alert("XSS")</SCRIPT>"\>`,
-		out: `<img>alert("XSS")"\&gt;`,
+		out: `<img>"\&gt;`,
 	},
 	{
 		in:  `<IMG SRC=javascript:alert(String.fromCharCode(88,83,83))>`,
@@ -279,7 +358,7 @@ var testCases = []struct {
 		out: `<img>`,
 	},
 	{
-		in: `<IMG SRC="jav	ascript:alert('XSS');">`,
+		in:  `<IMG SRC="jav	ascript:alert('XSS');">`,
 		out: `<img>`,
 	},
 	{
@@ -344,7 +423,11 @@ var testCases = []struct {
 	},
 	{
 		in:  `<STYLE>li {list-style-image: url("javascript:alert('XSS')");}</STYLE><UL><LI>XSS</br>`,
-		out: "li {list-style-image: url(\"javascript:alert('XSS')\");}<ul><li>XSS</br>",
+		out: "<ul><li>XSS</br>",
+	},
+	{
+		in:  `<STYLE>li {list-style-image: url("javascript:alert('XSS')");}`,
+		out: "",
 	},
 	{
 		in:  `<svg/onload=alert('XSS')>`,
@@ -380,10 +463,10 @@ var testCases = []struct {
 	},
 	{
 		in: `<!--[if gte IE 4]>
-		<SCRIPT>alert('XSS');</SCRIPT>
+<SCRIPT>alert('XSS');</SCRIPT>
 		<![endif]-->`,
 		out: `
-		alert('XSS');
+
 		`,
 	},
 	{
@@ -404,7 +487,7 @@ var testCases = []struct {
 	},
 	{
 		in:  `<SCRIPT =">" SRC="httx://xss.rocks/xss.js"></SCRIPT>`,
-		out: "\" SRC=\"httx://xss.rocks/xss.js\"&gt;",
+		out: "",
 	},
 	{
 		in:  `<A HREF="http://66.102.7.147/">XSS</A>`,
@@ -424,36 +507,66 @@ var testCases = []struct {
 		out: `<a>XSS</a>`,
 	},
 	{
+		in:  `<span>func <a class= "Documentation-source" href="https://cs.opensource.google/go/go/+/go1.21.5:src/os/path.go;l=66">RemoveAll</a> <a class="Documentation-idLink" href="#RemoveAll" aria-label="Go to RemoveAll">¶</a></span>`,
+		out: `<span>func <a class="Documentation-source" href="https://cs.opensource.google/go/go/+/go1.21.5:src/os/path.go;l=66">RemoveAll</a> <a class="Documentation-idLink" href="#RemoveAll">¶</a></span>`,
+	},
+	{
 		in: `
-		<Img src = x onerror = "javascript: window.onerror = alert; throw XSS">
-		<Video> <source onerror = "javascript: alert (XSS)">
-		<Input value = "XSS" type = text>
-		<applet code="javascript:confirm(document.cookie);">
-		<isindex x="javascript:" onmouseover="alert(XSS)">
-		"></SCRIPT>”>’><SCRIPT>alert(String.fromCharCode(88,83,83))</SCRIPT>
-		"><img src="x:x" onerror="alert(XSS)">
-		"><iframe src="javascript:alert(XSS)">
-		<object data="javascript:alert(XSS)">
-		<isindex type=image src=1 onerror=alert(XSS)>
-		<img src=x:alert(alt) onerror=eval(src) alt=0>
-		<img  src="x:gif" onerror="window['al\u0065rt'](0)"></img>
-		<iframe/src="data:text/html,<svg onload=alert(1)>">
-		<meta content="&NewLine; 1 &NewLine;; JAVASCRIPT&colon; alert(1)" http-equiv="refresh"/>
-		<svg><script xlink:href=data&colon;,window.open('https://www.google.com/')></script
-		<meta http-equiv="refresh" content="0;url=javascript:confirm(1)">
-		<iframe src=javascript&colon;alert&lpar;document&period;location&rpar;>
-		<form><a href="javascript:\u0061lert(1)">X
-		</script><img/*%00/src="worksinchrome&colon;prompt(1)"/%00*/onerror='eval(src)'>
-		<style>//*{x:expression(alert(/xss/))}//<style></style>
-		On Mouse Over​
-		<img src="/" =_=" title="onerror='prompt(1)'">
-		<a aa aaa aaaa aaaaa aaaaaa aaaaaaa aaaaaaaa aaaaaaaaa aaaaaaaaaa href=j&#97v&#97script:&#97lert(1)>ClickMe
-		<script x> alert(1) </script 1=2
-		<form><button formaction=javascript&colon;alert(1)>CLICKME
-		<input/onmouseover="javaSCRIPT&colon;confirm&lpar;1&rpar;"
-		<iframe src="data:text/html,%3C%73%63%72%69%70%74%3E%61%6C%65%72%74%28%31%29%3C%2F%73%63%72%69%70%74%3E"></iframe>
-		<OBJECT CLASSID="clsid:333C7BC4-460F-11D0-BC04-0080C7055A83"><PARAM NAME="DataURL" VALUE="javascript:alert(1)"></OBJECT>
-		`,
-		out: "\n\t\t<img src=\"x\">\n\t\t<video> <source>\n\t\t\n\t\t\n\t\t\n\t\t\"&gt;”&gt;’&gt;alert(String.fromCharCode(88,83,83))\n\t\t\"&gt;<img>\n\t\t\"&gt;\n\t\t\n\t\t\n\t\t<img alt=\"0\">\n\t\t<img></img>\n\t\t\n\t\t\n\t\t\n\t\t\n\t\t<a>X\n\t\t<img>\n\t\t//*{x:expression(alert(/xss/))}//\n\t\tOn Mouse Over\u200b\n\t\t<img src=\"/\">\n\t\t<a>ClickMe\n\t\t alert(1) CLICKME\n\t\t\n\t\t\n\t\t",
+<Img src = x onerror = "javascript: window.onerror = alert; throw XSS">
+<Video> <source onerror = "javascript: alert (XSS)">
+<Input value = "XSS" type = text>
+<applet code="javascript:confirm(document.cookie);">
+<isindex x="javascript:" onmouseover="alert(XSS)">
+"></SCRIPT>”>’><SCRIPT>alert(String.fromCharCode(88,83,83))</SCRIPT>
+"><img src="x:x" onerror="alert(XSS)">
+"><iframe src="javascript:alert(XSS)">
+<object data="javascript:alert(XSS)" />
+<isindex type=image src=1 onerror=alert(XSS)>
+<img src=x:alert(alt) onerror=eval(src) alt=0>
+<img  src="x:gif" onerror="window['al\u0065rt'](0)"></img>
+<iframe/src="data:text/html,<svg onload=alert(1)>">
+<meta content="&NewLine; 1 &NewLine;; JAVASCRIPT&colon; alert(1)" http-equiv="refresh"/>
+<svg><script xlink:href=data&colon;,window.open('https://www.google.com/')></script
+<meta http-equiv="refresh" content="0;url=javascript:confirm(1)">
+<iframe src=javascript&colon;alert&lpar;document&period;location&rpar;>
+<form><a href="javascript:\u0061lert(1)">X
+</script><img/*%00/src="worksinchrome&colon;prompt(1)"/%00*/onerror='eval(src)'>
+<style>//*{x:expression(alert(/xss/))}//<style></style>
+On Mouse Over​
+<img src="/" =_=" title="onerror='prompt(1)'">
+<a aa aaa aaaa aaaaa aaaaaa aaaaaaa aaaaaaaa aaaaaaaaa aaaaaaaaaa href=j&#97v&#97script:&#97lert(1)>ClickMe
+<script x> alert(1) </script 1=2
+<form><button formaction=javascript&colon;alert(1)>CLICKME
+<input/onmouseover="javaSCRIPT&colon;confirm&lpar;1&rpar;"
+<iframe src="data:text/html,%3C%73%63%72%69%70%74%3E%61%6C%65%72%74%28%31%29%3C%2F%73%63%72%69%70%74%3E"></iframe>
+<OBJECT CLASSID="clsid:333C7BC4-460F-11D0-BC04-0080C7055A83"><PARAM NAME="DataURL" VALUE="javascript:alert(1)"></OBJECT>
+`,
+		out: `
+<img src="x">
+<video> <source>
+
+
+
+"&gt;”&gt;’&gt;
+"&gt;<img>
+"&gt;
+
+
+<img alt="0">
+<img></img>
+
+
+
+
+<a>X
+<img>
+
+On Mouse Over​
+<img src="/">
+<a>ClickMe
+CLICKME
+
+
+`,
 	},
 }

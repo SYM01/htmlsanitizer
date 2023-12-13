@@ -56,6 +56,12 @@ type AllowList struct {
 	// For security reasons, it's not recommended to set a glboal attr for
 	// any URL-related attribute.
 	GlobalAttr []string
+
+	// NonHTMLTags defines a set of special tags, such as <script> and <style>.
+	// The content of these kind of tags is actually not a real HTML content.
+	// So we should treat it as a single element, without any child elements.
+	// TODO: rename this one
+	NonHTMLTags []*Tag
 }
 
 // attrExists checks whether global attr exists. Case sensitive
@@ -72,6 +78,23 @@ func (l *AllowList) attrExists(p []byte) bool {
 	}
 
 	return false
+}
+
+// checkNonHTMLTag checks if the given tag name is a non-html tag,
+// such as `script` and `style`. Return nil if it's not a non-html tag
+func (l *AllowList) checkNonHTMLTag(p []byte) *Tag {
+	if l == nil {
+		return nil
+	}
+
+	name := string(bytes.ToLower(p))
+	for _, tag := range l.NonHTMLTags {
+		if name == tag.Name {
+			return tag
+		}
+	}
+
+	return nil
 }
 
 // RemoveTag removes all tags name `name`, must be lowercase
@@ -121,6 +144,7 @@ func (l *AllowList) Clone() *AllowList {
 	newList := new(AllowList)
 	newList.Tags = append(newList.Tags, l.Tags...)
 	newList.GlobalAttr = append(newList.GlobalAttr, l.GlobalAttr...)
+	newList.NonHTMLTags = append(newList.NonHTMLTags, l.NonHTMLTags...)
 
 	return newList
 }
@@ -218,5 +242,10 @@ var DefaultAllowList = &AllowList{
 	GlobalAttr: []string{
 		"class",
 		"id",
+	},
+	NonHTMLTags: []*Tag{
+		{Name: "script"},
+		{Name: "style"},
+		{Name: "object"},
 	},
 }
