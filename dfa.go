@@ -27,6 +27,8 @@ const (
 	sERRTAG
 	sETAGATTR
 	sETAGEND
+
+	sNONHTML
 )
 
 func legalKeywordByte(b byte) bool {
@@ -138,12 +140,6 @@ func (w *writer) safeAppendAttr() {
 	w.buf = append(w.buf, '"')
 }
 
-// not an allowed tag, but it's a non-html tag.
-// then we should ignore the contents inside
-func (w *writer) shouldSwallowContent() bool {
-	return w.nonHTMLTag != nil && w.tag == nil
-}
-
 func (w *writer) shouldKeepNonHTMLContent() bool {
 	return w.nonHTMLTag != nil && w.tag != nil && w.nonHTMLTag.Name == w.tag.Name
 }
@@ -164,6 +160,8 @@ func (w *writer) Write(p []byte) (n int, err error) {
 		switch w.state {
 		case sNORMAL:
 			err = w.sNORMAL()
+		case sNONHTML:
+			err = w.sNONHTML()
 		case sLTSIGN:
 			err = w.sLTSIGN()
 		case sTAGNAME:
@@ -203,7 +201,6 @@ func (w *writer) Write(p []byte) (n int, err error) {
 	return
 }
 
-// done
 func (w *writer) sNORMAL() (err error) {
 	for ; w.off < len(w.data); w.off++ {
 		switch b := w.data[w.off]; b {
@@ -214,14 +211,8 @@ func (w *writer) sNORMAL() (err error) {
 			_, err = w.flush()
 			return
 		case '>':
-			if w.shouldSwallowContent() {
-				continue
-			}
 			w.buf = append(w.buf, `&gt;`...)
 		default:
-			if w.shouldSwallowContent() {
-				continue
-			}
 			w.buf = append(w.buf, b)
 		}
 	}
@@ -230,7 +221,30 @@ func (w *writer) sNORMAL() (err error) {
 	return err
 }
 
-// done
+func (w *writer) sNONHTML() (err error) {
+	for ; w.off < len(w.data); w.off++ {
+		switch b := w.data[w.off]; b {
+		case '<':
+			w.state = sLTSIGN
+			w.off++
+
+			_, err = w.flush()
+			return
+		case '>':
+			if w.shouldKeepNonHTMLContent() {
+				w.buf = append(w.buf, `&gt;`...)
+			}
+		default:
+			if w.shouldKeepNonHTMLContent() {
+				w.buf = append(w.buf, b)
+			}
+		}
+	}
+
+	_, err = w.flush()
+	return err
+}
+
 func (w *writer) sLTSIGN() error {
 	switch b := w.data[w.off]; {
 	case b == '/':
@@ -238,15 +252,12 @@ func (w *writer) sLTSIGN() error {
 
 		w.state = sETAGSTART
 		w.tagName = nil
-		w.tag = nil
 
-	case w.shouldKeepNonHTMLContent():
-		w.buf = append(w.buf, `&lt;`...)
-		w.state = sNORMAL
-
-	case w.shouldSwallowContent():
-		w.state = sNORMAL
-		w.off++
+	case w.nonHTMLTag != nil:
+		w.state = sNONHTML
+		if w.shouldKeepNonHTMLContent() {
+			w.buf = append(w.buf, `&lt;`...)
+		}
 
 	default:
 		w.off++
@@ -266,7 +277,6 @@ func (w *writer) sLTSIGN() error {
 	return nil
 }
 
-// done
 func (w *writer) sTAGNAME() error {
 	for ; w.off < len(w.data); w.off++ {
 		switch b := w.data[w.off]; b {
@@ -308,11 +318,19 @@ func (w *writer) sTAGNAME() error {
 	return nil
 }
 
-// done
 func (w *writer) sTAGEND() error {
 	// eat '>'
 	w.off++
 	w.state = sNORMAL
+
+	if w.nonHTMLTag != nil {
+		if w.lastByte == '/' {
+			w.nonHTMLTag = nil
+		} else {
+			w.state = sNONHTML
+		}
+	}
+
 	if w.tag == nil {
 		// illegal tag, just reset the buf
 		if len(w.buf) > 0 {
@@ -331,7 +349,6 @@ func (w *writer) sTAGEND() error {
 	return err
 }
 
-// done
 func (w *writer) sATTRGAP() error {
 	for ; w.off < len(w.data); w.off++ {
 		switch b := w.data[w.off]; {
@@ -394,7 +411,6 @@ func (w *writer) sATTRNAME() error {
 	return nil
 }
 
-// done
 func (w *writer) sEQUALSIGN() error {
 	// reset
 	if len(w.val) > 0 {
@@ -422,7 +438,6 @@ func (w *writer) sEQUALSIGN() error {
 	return nil
 }
 
-// done
 func (w *writer) sATTRSPACE() error {
 	for ; w.off < len(w.data); w.off++ {
 		switch b := w.data[w.off]; {
@@ -475,7 +490,6 @@ func (w *writer) sATTRSPACE() error {
 	return nil
 }
 
-// done
 func (w *writer) sATTRVAL() error {
 	for ; w.off < len(w.data); w.off++ {
 		switch b := w.data[w.off]; {
@@ -497,7 +511,6 @@ func (w *writer) sATTRVAL() error {
 	return nil
 }
 
-// done
 func (w *writer) sVALSPACE() error {
 	for ; w.off < len(w.data); w.off++ {
 		switch b := w.data[w.off]; {
@@ -527,7 +540,6 @@ func (w *writer) sVALSPACE() error {
 	return nil
 }
 
-// done
 func (w *writer) sATTRQVAL() error {
 	for ; w.off < len(w.data); w.off++ {
 		switch b := w.data[w.off]; b {
@@ -544,7 +556,6 @@ func (w *writer) sATTRQVAL() error {
 	return nil
 }
 
-// done
 func (w *writer) sETAGSTART() error {
 	switch b := w.data[w.off]; {
 	case legalKeywordByte(b):
@@ -555,6 +566,13 @@ func (w *writer) sETAGSTART() error {
 		}
 		w.tagName = append(w.tagName, b)
 		w.state = sETAGNAME
+
+	case w.nonHTMLTag != nil:
+		w.state = sNONHTML
+		if w.shouldKeepNonHTMLContent() {
+			w.buf = append(w.buf, `&lt;/`...)
+		}
+
 	default:
 		// no w.off++
 		w.state = sERRTAG
@@ -563,13 +581,21 @@ func (w *writer) sETAGSTART() error {
 	return nil
 }
 
-// done
 func (w *writer) sETAGNAME() error {
 	for ; w.off < len(w.data); w.off++ {
 		switch b := w.data[w.off]; {
 		case b == '>':
-			if w.isEndTagOfNonHTMLElement(w.tagName) {
-				w.nonHTMLTag = nil
+			if w.nonHTMLTag != nil {
+				if w.isEndTagOfNonHTMLElement(w.tagName) {
+					w.nonHTMLTag = nil
+				} else {
+					if w.shouldKeepNonHTMLContent() {
+						w.safeAppend([]byte(`</`))
+						w.safeAppend(w.tagName)
+					}
+					w.state = sNONHTML
+					return nil
+				}
 			}
 
 			w.tag = w.FindTag(w.tagName)
@@ -589,11 +615,22 @@ func (w *writer) sETAGNAME() error {
 			w.tagName = append(w.tagName, b)
 			continue
 
-		default:
-			if w.isEndTagOfNonHTMLElement(w.tagName) {
-				w.nonHTMLTag = nil
+		case w.nonHTMLTag != nil:
+			if !w.isEndTagOfNonHTMLElement(w.tagName) {
+				// all other tags
+				if w.shouldKeepNonHTMLContent() {
+					w.safeAppend([]byte(`</`))
+					w.safeAppend(w.tagName)
+				}
+				w.state = sNONHTML
+				return nil
 			}
 
+			// is end tag of non-html element
+			w.nonHTMLTag = nil
+			fallthrough
+
+		default:
 			w.tag = w.FindTag(w.tagName)
 			if w.tag == nil {
 				// no w.off++
@@ -612,7 +649,6 @@ func (w *writer) sETAGNAME() error {
 	return nil
 }
 
-// done
 func (w *writer) sERRTAG() error {
 	for ; w.off < len(w.data); w.off++ {
 		if w.data[w.off] == '>' {
@@ -629,7 +665,6 @@ func (w *writer) sERRTAG() error {
 	return nil
 }
 
-// done
 func (w *writer) sETAGATTR() error {
 	for ; w.off < len(w.data); w.off++ {
 		if w.data[w.off] == '>' {
@@ -642,7 +677,6 @@ func (w *writer) sETAGATTR() error {
 	return nil
 }
 
-// done
 func (w *writer) sETAGEND() error {
 	// eat '>'
 	w.off++

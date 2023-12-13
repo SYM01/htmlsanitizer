@@ -54,7 +54,9 @@ func ExampleHTMLSanitizer_keepStyleSheet() {
 		background-color: #f0f0f2;
 		margin: 0;
 		padding: 0;
-		bad-attr: <body>;
+		bad-attr: <body></body>;
+		bad-attr: <body></body >;
+		bad-attr: <body></ body>;
 		font-family: -apple-system, system-ui, BlinkMacSystemFont, "Segoe UI", "Open Sans", "Helvetica Neue", Helvetica, Arial, sans-serif;
 	}
 	</style>
@@ -77,7 +79,9 @@ func ExampleHTMLSanitizer_keepStyleSheet() {
 	//		background-color: #f0f0f2;
 	//		margin: 0;
 	//		padding: 0;
-	// 		bad-attr: &lt;body&gt;;
+	// 		bad-attr: &lt;body&gt;&lt;/body&gt;;
+	// 		bad-attr: &lt;body&gt;&lt;/body &gt;;
+	// 		bad-attr: &lt;body&gt;&lt;/ body&gt;;
 	//		font-family: -apple-system, system-ui, BlinkMacSystemFont, "Segoe UI", "Open Sans", "Helvetica Neue", Helvetica, Arial, sans-serif;
 	//	}
 	// 	</style>
@@ -204,7 +208,7 @@ var testCases = []struct {
 		out: "<a class=\"&#39;&lt;&gt;\" rel=\"aaa&#34;\">test</a>",
 	},
 	{
-		in:  `<a href="ftp://example.com/xxx">test</a>`,
+		in:  `<a href="ftp://example.com/xxx">test</a xxx>`,
 		out: "<a>test</a>",
 	},
 	{
@@ -278,7 +282,7 @@ var testCases = []struct {
 
 	// test cases from https://owasp.org/www-community/xss-filter-evasion-cheatsheet
 	{
-		in:  `<SCRIPT SRC=http://xss.rocks/xss.js></SCRIPT>`,
+		in:  `<SCRIPT SRC=http://xss.rocks/xss.js></SCRIPT xxx>`,
 		out: ``,
 	},
 	{
@@ -422,6 +426,10 @@ var testCases = []struct {
 		out: "<ul><li>XSS</br>",
 	},
 	{
+		in:  `<STYLE>li {list-style-image: url("javascript:alert('XSS')");}`,
+		out: "",
+	},
+	{
 		in:  `<svg/onload=alert('XSS')>`,
 		out: ``,
 	},
@@ -532,7 +540,7 @@ On Mouse Over​
 <input/onmouseover="javaSCRIPT&colon;confirm&lpar;1&rpar;"
 <iframe src="data:text/html,%3C%73%63%72%69%70%74%3E%61%6C%65%72%74%28%31%29%3C%2F%73%63%72%69%70%74%3E"></iframe>
 <OBJECT CLASSID="clsid:333C7BC4-460F-11D0-BC04-0080C7055A83"><PARAM NAME="DataURL" VALUE="javascript:alert(1)"></OBJECT>
-		`,
+`,
 		out: `
 <img src="x">
 <video> <source>
@@ -542,7 +550,10 @@ On Mouse Over​
 "&gt;”&gt;’&gt;
 "&gt;<img>
 "&gt;
-</img>
+
+
+<img alt="0">
+<img></img>
 
 
 
@@ -556,6 +567,6 @@ On Mouse Over​
 CLICKME
 
 
-		`,
+`,
 	},
 }
