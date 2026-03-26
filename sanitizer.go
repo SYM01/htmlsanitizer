@@ -8,10 +8,10 @@ import (
 
 // DefaultURLSanitizer is a default and strict sanitizer.
 // It only accepts
-//  * URL with scheme http or https
-//  * relative URL, such as abc, abc?xxx=1, abc#123
-//  * absolute URL, such as /abc, /abc?xxx=1, /abc#123
-func DefaultURLSanitizer(rawURL string) (sanitzed string, ok bool) {
+//   - URL with scheme http or https
+//   - relative URL, such as abc, abc?xxx=1, abc#123
+//   - absolute URL, such as /abc, /abc?xxx=1, /abc#123
+func DefaultURLSanitizer(rawURL string) (sanitized string, ok bool) {
 	u, err := url.Parse(rawURL)
 	if err != nil {
 		return
@@ -27,22 +27,22 @@ func DefaultURLSanitizer(rawURL string) (sanitzed string, ok bool) {
 		return
 	}
 
-	sanitzed = u.String()
+	sanitized = u.String()
 	ok = true
 	return
 }
 
 // HTMLSanitizer is a super fast HTML sanitizer for arbitrary HTML content.
-// This is a allowlist-based santizer, of which the time complexity is O(n).
+// This is an allowlist-based sanitizer, of which the time complexity is O(n).
 type HTMLSanitizer struct {
 	*AllowList
 
 	// URLSanitizer is a func used to sanitize all the URLAttr.
-	// URLSanitizer returns a sanitzed URL and a bool var indicating
+	// URLSanitizer returns a sanitized URL and a bool var indicating
 	// whether the current attribute is acceptable. If not acceptable,
 	// the current attribute will be ignored.
 	// If the func is nil, then DefaultURLSanitizer will be used.
-	URLSanitizer func(rawURL string) (sanitzed string, ok bool)
+	URLSanitizer func(rawURL string) (sanitized string, ok bool)
 }
 
 // NewHTMLSanitizer creates a new HTMLSanitizer with the clone of
@@ -53,7 +53,7 @@ func NewHTMLSanitizer() *HTMLSanitizer {
 	}
 }
 
-func (f *HTMLSanitizer) urlSanitizer(rawURL string) (sanitzed string, ok bool) {
+func (f *HTMLSanitizer) urlSanitizer(rawURL string) (sanitized string, ok bool) {
 	if f.URLSanitizer != nil {
 		return f.URLSanitizer(rawURL)
 	}
@@ -69,9 +69,9 @@ func (f *HTMLSanitizer) NewWriter(w io.Writer) io.Writer {
 	}
 }
 
-// Sanitize the HTML data and return the sanitzed HTML.
+// Sanitize the HTML data and return the sanitized HTML.
 func (f *HTMLSanitizer) Sanitize(data []byte) ([]byte, error) {
-	buf := new(bytes.Buffer)
+	buf := bytes.NewBuffer(make([]byte, 0, len(data)))
 
 	if _, err := f.NewWriter(buf).Write(data); err != nil {
 		return nil, err
@@ -80,7 +80,7 @@ func (f *HTMLSanitizer) Sanitize(data []byte) ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-// SanitizeString sanitizes the HTML string and return the sanitzed HTML.
+// SanitizeString sanitizes the HTML string and return the sanitized HTML.
 func (f *HTMLSanitizer) SanitizeString(data string) (string, error) {
 	ret, err := f.Sanitize([]byte(data))
 	var retStr string
