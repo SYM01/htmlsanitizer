@@ -570,3 +570,193 @@ CLICKME
 `,
 	},
 }
+
+func TestChunkedWrite(t *testing.T) {
+	// Verify that splitting input across multiple Write calls produces the
+	// same output as a single Write call.
+	inputs := []string{
+		`<a href="http://example.com" class="link">text</a>`,
+		`<script>alert(1)</script><p>safe</p>`,
+		`<div class="c"><img src="http://x.com/i.png" alt="pic" /></div>`,
+		`<span style="color:red">hello</span>`,
+		`<a href='http://example.com'>link</a>`,
+	}
+
+	for _, input := range inputs {
+		expected, err := htmlsanitizer.SanitizeString(input)
+		if err != nil {
+			t.Fatalf("SanitizeString(%q) error: %v", input, err)
+		}
+
+		// Try splitting at every possible byte position
+		data := []byte(input)
+		for split := 1; split < len(data); split++ {
+			var buf bytes.Buffer
+			w := htmlsanitizer.NewWriter(&buf)
+
+			_, err1 := w.Write(data[:split])
+			_, err2 := w.Write(data[split:])
+			if err1 != nil || err2 != nil {
+				t.Fatalf("chunked Write(%q) split=%d errors: %v, %v", input, split, err1, err2)
+			}
+
+			got := buf.String()
+			if got != expected {
+				t.Errorf("chunked Write(%q) split=%d\nexpected: %q\ngot:      %q", input, split, expected, got)
+			}
+		}
+	}
+}
+
+func TestCloneDeepCopy(t *testing.T) {
+	original := htmlsanitizer.DefaultAllowList.Clone()
+
+	// Record original state
+	clone := original.Clone()
+	origTagCount := len(original.Tags)
+	origFirstTagAttrCount := len(original.Tags[0].Attr)
+
+	// Mutate the clone's tag slice
+	clone.Tags = append(clone.Tags, &htmlsanitizer.Tag{Name: "custom"})
+	if len(original.Tags) != origTagCount {
+		t.Errorf("appending to clone.Tags changed original: got %d, want %d", len(original.Tags), origTagCount)
+	}
+
+	// Mutate a Tag struct inside the clone
+	clone.Tags[0].Attr = append(clone.Tags[0].Attr, "style")
+	if len(original.Tags[0].Attr) != origFirstTagAttrCount {
+		t.Errorf("mutating clone Tag.Attr changed original: got %d, want %d", len(original.Tags[0].Attr), origFirstTagAttrCount)
+	}
+
+	// Mutate GlobalAttr
+	origGlobalCount := len(original.GlobalAttr)
+	clone.GlobalAttr = append(clone.GlobalAttr, "data-x")
+	if len(original.GlobalAttr) != origGlobalCount {
+		t.Errorf("appending to clone.GlobalAttr changed original: got %d, want %d", len(original.GlobalAttr), origGlobalCount)
+	}
+}
+
+var benchHTML = strings.Repeat(`<div class="container"><p>Hello <strong>world</strong>!</p><a href="http://example.com">link</a><img src="http://example.com/img.png" alt="test" /><script>alert('xss')</script></div>`, 100)
+var benchPlain = strings.Repeat("Hello world, this is plain text with no HTML tags at all. ", 100)
+
+func BenchmarkSanitize(b *testing.B) {
+	data := []byte(benchHTML)
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_, _ = htmlsanitizer.Sanitize(data)
+	}
+}
+
+func BenchmarkSanitizePlainText(b *testing.B) {
+	data := []byte(benchPlain)
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_, _ = htmlsanitizer.Sanitize(data)
+	}
+}
+
+func BenchmarkSanitizeString(b *testing.B) {
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_, _ = htmlsanitizer.SanitizeString(benchHTML)
+	}
+}
+
+func BenchmarkSanitizeWriter(b *testing.B) {
+	data := []byte(benchHTML)
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		w := htmlsanitizer.NewWriter(io.Discard)
+		_, _ = w.Write(data)
+	}
+}
+
+type failWriter struct{}
+
+func (failWriter) Write([]byte) (int, error) {
+	return 0, io.ErrShortWrite
+}
+
+func TestSanitizeWriteError(t *testing.T) {
+	// Covers flush error propagation via NewWriter
+	w := htmlsanitizer.NewWriter(failWriter{})
+	_, err := w.Write([]byte("hello"))
+	if err == nil {
+		t.Error("expected error from failing writer")
+	}
+
+	// Covers Sanitize method error path (sanitizer.go:78)
+	s := htmlsanitizer.NewHTMLSanitizer()
+	s.URLSanitizer = func(rawURL string) (string, bool) {
+		return rawURL, true
+	}
+	fw := failWriter{}
+	sw := s.NewWriter(&fw)
+	_, err = sw.Write([]byte(`<p>text</p>`))
+	if err == nil {
+		t.Error("expected error from Sanitize with failing writer")
+	}
+}
+
+func TestEdgeCaseDFACoverage(t *testing.T) {
+	cases := []struct {
+		name string
+		in   string
+		out  string
+	}{
+		{
+			name: "invalid tag character triggers sERRTAG",
+			in:   `<+invalid>text`,
+			out:  `text`,
+		},
+		{
+			name: "unquoted attr value after space in sVALSPACE",
+			in:   `<a href= http://example.com>test</a>`,
+			out:  `<a href="http://example.com">test</a>`,
+		},
+		{
+			name: "consecutive closing tags reset tagName in sETAGSTART",
+			in:   `<div></div></xyz>`,
+			out:  `<div></div>`,
+		},
+		{
+			name: "self-closing non-HTML tag",
+			in:   `<script/>safe`,
+			out:  `safe`,
+		},
+		{
+			name: "comment-like tag",
+			in:   `<!--comment-->visible`,
+			out:  `visible`,
+		},
+		{
+			name: "nil allowlist strips everything",
+			in:   `<div class="x">hello</div>`,
+			out:  `hello`,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			var s *htmlsanitizer.HTMLSanitizer
+			if tc.name == "nil allowlist strips everything" {
+				s = htmlsanitizer.NewHTMLSanitizer()
+				s.AllowList = nil
+			}
+
+			var got string
+			var err error
+			if s != nil {
+				got, err = s.SanitizeString(tc.in)
+			} else {
+				got, err = htmlsanitizer.SanitizeString(tc.in)
+			}
+			if err != nil {
+				t.Fatalf("SanitizeString(%q) error: %v", tc.in, err)
+			}
+			if got != tc.out {
+				t.Errorf("SanitizeString(%q)\n  got:  %q\n  want: %q", tc.in, got, tc.out)
+			}
+		})
+	}
+}

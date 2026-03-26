@@ -13,38 +13,41 @@ jobs:
     runs-on: ubuntu-latest
     steps:
 
-    - name: Set up Go 1.x
-      uses: actions/setup-go@v4
-      with:
-        go-version: ^1.13
-      id: go
-
-    - name: Check out code into the Go module directory
+    - name: Check out code
       uses: actions/checkout@v4
 
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: stable
+
     - name: Build
-      run: go build -v .
+      run: go build -v ./...
+
+    - name: Vet
+      run: go vet ./...
 
     - name: Test
-      run: go test -v -race -coverprofile=coverage.txt -covermode=atomic
+      run: go test -v -race -coverprofile=coverage.txt -covermode=atomic ./...
 
     - name: Codecov
-      uses: codecov/codecov-action@v3
+      uses: codecov/codecov-action@v5
       with:
         token: ${{ secrets.CODECOV_TOKEN }}
         file: ./coverage.txt
         fail_ci_if_error: true
 
-  matrix:
+  compatibility:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        go: [ '1.21', '1.20', '1.19', '1.18', '1.17', '1.16', '1.15', '1.14' ]
-    name: Go ${{ matrix.go }} compatibility
+        go: [ '1.24', '1.23', '1.22', '1.21', '1.20', '1.19', '1.18' ]
+    name: Go ${{ matrix.go }}
     steps:
       - uses: actions/checkout@v4
-      - name: Setup go
-        uses: actions/setup-go@v4
+      - name: Set up Go ${{ matrix.go }}
+        uses: actions/setup-go@v5
         with:
           go-version: ${{ matrix.go }}
-      - run: go test -v
+      - run: go build -v ./...
+      - run: go test -v ./...

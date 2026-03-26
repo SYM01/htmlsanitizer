@@ -1,73 +1,70 @@
-# Golang HTML Sanitizer / Filter
+# htmlsanitizer
 
 [![Go Reference](https://pkg.go.dev/badge/github.com/sym01/htmlsanitizer.svg)](https://pkg.go.dev/github.com/sym01/htmlsanitizer)
 [![Go](https://github.com/SYM01/htmlsanitizer/workflows/Go/badge.svg)](https://github.com/SYM01/htmlsanitizer/actions/workflows/go.yml)
 [![codecov](https://codecov.io/gh/SYM01/htmlsanitizer/branch/master/graph/badge.svg)](https://codecov.io/gh/SYM01/htmlsanitizer)
 
+A fast, allowlist-based HTML sanitizer written in Go. Secure-by-default with a built-in allowlist that strips dangerous HTML content.
 
-htmlsanitizer is a super fast, allowlist-based HTML sanitizer (HTML filter) written in Golang. A built-in, secure-by-default allowlist helps you filter out any dangerous HTML content.
+- **Fast** -- O(n) time complexity via an internal Finite State Machine
+- **Customizable** -- modify the allowlist, add/remove tags, or disable all HTML
+- **Zero dependencies**
 
-Why use htmlsanitizer?
-
-- [x] Fast, a Finite State Machine was implemented internally, making the time complexity always O(n).
-- [x] Highly customizable, allows you to modify the allowlist, or simply disable all HTML tags.
-- [x] Dependency free.
-
+> Also available in **Rust / npm**: [htmlsanitizer-rs](https://github.com/SYM01/htmlsanitizer-rs)
 
 ## Install
 
 ```bash
-go get -u github.com/sym01/htmlsanitizer
+go get github.com/sym01/htmlsanitizer
 ```
 
+## Usage
 
-## Getting Started
+### Basic
 
-### Use the secure-by-default allowlist
-
-Simply use the secure-by-default allowlist to sanitize untrusted HTML.
-
-```golang
+```go
 sanitizedHTML, err := htmlsanitizer.SanitizeString(rawHTML)
 ```
 
-
 ### Disable the `id` attribute globally
 
-By default, htmlsanitizer allows the `id` attribute globally. If we do NOT allow the `id` attribute, we can simply override the `GlobalAttr`.
-
-```golang
+```go
 s := htmlsanitizer.NewHTMLSanitizer()
 s.GlobalAttr = []string{"class"}
 
 sanitizedHTML, err := s.SanitizeString(rawHTML)
 ```
 
-### Disable or add HTML tag
+### Add or remove tags
 
-```golang
+```go
 s := htmlsanitizer.NewHTMLSanitizer()
 // remove <a> tag
 s.RemoveTag("a")
 
-// add a custom tag named my-tag, which allows my-attr attribute
-customTag := &htmlsanitizer.Tag{
+// add a custom tag
+s.AllowList.Tags = append(s.AllowList.Tags, &htmlsanitizer.Tag{
     Name: "my-tag",
     Attr: []string{"my-attr"},
-}
-s.AllowList.Tags = append(s.AllowList.Tags, customTag)
+})
 
 sanitizedHTML, err := s.SanitizeString(rawHTML)
 ```
 
-### Disable all HTML tags
+### Strip all HTML
 
-You can also use htmlsanitizer to remove all HTML tags.
-
-```golang
+```go
 s := htmlsanitizer.NewHTMLSanitizer()
-// just set AllowList to nil to disable all tags
 s.AllowList = nil
 
 sanitizedHTML, err := s.SanitizeString(rawHTML)
+```
+
+## Testing
+
+```bash
+go test ./...              # run tests
+go test -race ./...        # with race detection
+go test -bench=. -benchmem ./...  # benchmarks
+go test -fuzz=FuzzSanitize -fuzztime=30s .  # fuzz testing
 ```
